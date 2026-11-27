@@ -1,4 +1,4 @@
-name: Build Overlay APK
+name: Build ESP Overlay APK
 
 on:
   workflow_dispatch:
@@ -11,6 +11,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Tu tim thu muc chua settings.gradle (ke ca khi lo upload nham vao thu muc con)
+      - name: Locate Android project
+        id: proj
+        run: |
+          f=$(find . -name settings.gradle -not -path './.git/*' | head -n 1)
+          if [ -z "$f" ]; then
+            echo "::error::Khong thay settings.gradle trong repo. Hay day TOAN BO file du an (app/, build.gradle, settings.gradle, gradle.properties...) len repo."
+            ls -R | head -50
+            exit 1
+          fi
+          dir=$(dirname "$f")
+          echo "Project dir: $dir"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -18,15 +32,22 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
       # Khong can gradlew / gradle-wrapper.jar: workflow tu cai Gradle 8.5
-      - uses: gradle/actions/setup-gradle@v3
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.5'
 
       - name: Build Debug APK
+        working-directory: ${{ steps.proj.outputs.dir }}
         run: gradle assembleDebug --stacktrace --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:
           name: ff-overlay-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ steps.proj.outputs.dir }}/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
