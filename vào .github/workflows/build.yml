@@ -11,15 +11,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Tu tim thu muc chua settings.gradle (ke ca khi lo upload nham vao thu muc con)
+      # Tu giai nen file zip neu chua co settings.gradle
+      - name: Extract zip (neu can)
+        run: |
+          if [ -z "$(find . -name settings.gradle -not -path './.git/*' | head -n 1)" ]; then
+            z=$(ls ff-overlay-controller-fixed.zip 2>/dev/null || ls *.zip 2>/dev/null | head -n 1)
+            if [ -z "$z" ]; then
+              echo "::error::Khong thay file zip hoac settings.gradle trong repo"; ls -la; exit 1
+            fi
+            echo "Giai nen $z"
+            mkdir -p _src
+            unzip -q -o "$z" -d _src
+          fi
+
       - name: Locate Android project
         id: proj
         run: |
           f=$(find . -name settings.gradle -not -path './.git/*' | head -n 1)
           if [ -z "$f" ]; then
-            echo "::error::Khong thay settings.gradle trong repo. Hay day TOAN BO file du an (app/, build.gradle, settings.gradle, gradle.properties...) len repo."
-            ls -R | head -50
-            exit 1
+            echo "::error::Khong thay settings.gradle"; find . -not -path './.git/*' | head -50; exit 1
           fi
           dir=$(dirname "$f")
           echo "Project dir: $dir"
@@ -37,7 +47,6 @@ jobs:
           yes | sdkmanager --licenses > /dev/null || true
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      # Khong can gradlew / gradle-wrapper.jar: workflow tu cai Gradle 8.5
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.5'
